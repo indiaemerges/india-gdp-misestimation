@@ -382,6 +382,22 @@ elif "Full GVA" in y_mode:
 else:
     y_label_short = "Real GDP Growth"
 
+# Show data availability in sidebar
+df_check = df_master.copy()
+if exclude_pandemic:
+    df_check = df_check[~df_check["YearInt"].isin([2020, 2021])]
+_m1 = (df_check["YearInt"] >= period1[0]) & (df_check["YearInt"] <= period1[1])
+_m2 = (df_check["YearInt"] >= period2[0]) & (df_check["YearInt"] <= period2[1])
+_n1 = df_check.loc[_m1, y1_col].notna().sum() if y1_col in df_check.columns else 0
+_n2 = df_check.loc[_m2, y2_col].notna().sum() if y2_col in df_check.columns else 0
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"**Data availability**")
+st.sidebar.markdown(f"Period 1 (`{y1_col}`): **{_n1}** obs")
+st.sidebar.markdown(f"Period 2 (`{y2_col}`): **{_n2}** obs")
+if _n1 < 4 or _n2 < 4:
+    st.sidebar.error("⚠ Not enough data for one or both periods. "
+                     "Old series has no data after ~2014.")
+
 # All available indicator columns
 INDICATOR_COLS = {
     "Real Exports": "Real Exports",
@@ -401,9 +417,10 @@ INDICATOR_COLS = {
 # ========================
 st.title("India GDP: A Statistical Review")
 st.markdown("**Reproducing and extending the analysis from WP26-3 (Anand, Felman & Subramanian, March 2026) with statistical tests**")
-st.markdown(f"*Current settings*: {y_mode} | {gva_series_mode} | "
+st.markdown(f"*Current settings*: **{y_mode}** | **{gva_series_mode}** | "
             f"Periods: {p1_label} vs {p2_label} | "
             f"{'Excl.' if exclude_pandemic else 'Incl.'} pandemic years")
+st.caption(f"Period 1 uses column: `{y1_col}` | Period 2 uses column: `{y2_col}`")
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Fig 2: GVA vs Indicators",
@@ -425,6 +442,17 @@ def run_correlation_panel(indicator_list, dep_y1_col, dep_y2_col, dep_label, tab
     df = df_master.copy()
     if exclude_pandemic:
         df = df[~df["YearInt"].isin([2020, 2021])]
+
+    # Warn about data availability
+    m1_check = (df["YearInt"] >= period1[0]) & (df["YearInt"] <= period1[1])
+    m2_check = (df["YearInt"] >= period2[0]) & (df["YearInt"] <= period2[1])
+    n1_avail = df.loc[m1_check, dep_y1_col].notna().sum() if dep_y1_col in df.columns else 0
+    n2_avail = df.loc[m2_check, dep_y2_col].notna().sum() if dep_y2_col in df.columns else 0
+    if n1_avail < 4 or n2_avail < 4:
+        tab_container.warning(
+            f"**Limited data**: `{dep_y1_col}` has {n1_avail} obs in period 1, "
+            f"`{dep_y2_col}` has {n2_avail} obs in period 2. "
+            f"Need at least 4 for correlation. The Old series has no data after ~2014.")
 
     cols = tab_container.columns(2)
     for idx, (nice_name, col_name) in enumerate(indicator_list):
