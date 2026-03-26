@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+~$*.xlsx
+*.tmp
+.DS_Store
+Thumbs.db
