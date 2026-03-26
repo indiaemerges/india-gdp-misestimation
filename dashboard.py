@@ -24,40 +24,36 @@ DATA_FILE = os.path.join(BASE, "Data1.xlsx")
 
 @st.cache_data
 def load_master_dataframe():
-    """Load data from 'Macro Indicators & GVA (2)' sheet which has both
-    non-agri and full GVA (incl. agriculture) old/new series."""
+    """Load Figure 2 (all indicators + non-agri GVA) as base, then add
+    full GVA (incl. agriculture) from 'Macro Indicators & GVA (2)'."""
     wb = openpyxl.load_workbook(DATA_FILE, data_only=True)
 
-    # --- Primary source: Macro Indicators & GVA (2) ---
-    # Col 10: Real GVA Old (full, incl. agriculture, old methodology)
-    # Col 11: Real GVA New (full, incl. agriculture, new methodology)
-    # Col 18: Real GDP
+    # --- Figure 2: all indicators, Real Sales, Direct Taxes, non-agri GVA ---
+    ws_f2 = wb["Figure 2"]
+    rows_f2 = list(ws_f2.iter_rows(values_only=True))
+    headers_f2 = list(rows_f2[0])
+    headers_f2[0] = "Year"
+    records_f2 = [r for r in rows_f2[1:] if r[0] is not None]
+    df = pd.DataFrame(records_f2, columns=headers_f2)
+
+    # --- Macro Indicators & GVA (2): full GVA old/new (incl. agriculture) ---
     ws_gva2 = wb["Macro Indicators & GVA (2)"]
     rows_gva2 = list(ws_gva2.iter_rows(values_only=True))
     headers_gva2 = list(rows_gva2[0])
     headers_gva2[0] = "Year"
     records_gva2 = [r for r in rows_gva2[1:] if r[0] is not None]
     df_gva2 = pd.DataFrame(records_gva2, columns=headers_gva2)
-    # Rename full GVA columns to distinguish from non-agri
-    df_gva2 = df_gva2.rename(columns={
+    # Keep only the full GVA columns we need, renamed to avoid clashes
+    df_full_gva = df_gva2[["Year", "Real GVA Old", "Real GVA New"]].copy()
+    df_full_gva = df_full_gva.rename(columns={
         "Real GVA Old": "Real Full GVA Old",
         "Real GVA New": "Real Full GVA New",
     })
 
-    # --- Also load Figure 2 for non-agri GVA columns ---
-    ws_f2 = wb["Figure 2"]
-    rows_f2 = list(ws_f2.iter_rows(values_only=True))
-    headers_f2 = list(rows_f2[0])
-    headers_f2[0] = "Year"
-    records_f2 = [r for r in rows_f2[1:] if r[0] is not None]
-    df_f2 = pd.DataFrame(records_f2, columns=headers_f2)
-    # Keep only the non-agri GVA columns from Figure 2
-    df_nonagri = df_f2[["Year", "Real non agri GVA Old", "Real non agri GVA New"]].copy()
-
     wb.close()
 
-    # Merge: use GVA(2) as base, add non-agri columns from Figure 2
-    df = df_gva2.merge(df_nonagri, on="Year", how="left")
+    # Merge: Figure 2 as base, add full GVA columns from GVA(2)
+    df = df.merge(df_full_gva, on="Year", how="left")
     # Deduplicate column names (e.g. two "Real Imports" columns)
     seen = {}
     new_headers = []
