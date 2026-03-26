@@ -14,7 +14,7 @@ import os
 import warnings
 warnings.filterwarnings("ignore")
 
-st.set_page_config(page_title="India GDP Misestimation Dashboard", layout="wide")
+st.set_page_config(page_title="India GDP: A Statistical Review", layout="wide")
 
 # --- Data Loading ---
 BASE = os.path.join(os.path.dirname(__file__),
@@ -24,34 +24,40 @@ DATA_FILE = os.path.join(BASE, "Data1.xlsx")
 
 @st.cache_data
 def load_master_dataframe():
-    """Load Figure 2 sheet and Figure 1 sheet, merge into one master dataframe."""
+    """Load data from 'Macro Indicators & GVA (2)' sheet which has both
+    non-agri and full GVA (incl. agriculture) old/new series."""
     wb = openpyxl.load_workbook(DATA_FILE, data_only=True)
 
-    # --- Figure 2: non-agri GVA and all indicators ---
-    ws = wb["Figure 2"]
-    rows = list(ws.iter_rows(values_only=True))
-    headers_f2 = list(rows[0])
+    # --- Primary source: Macro Indicators & GVA (2) ---
+    # Col 10: Real GVA Old (full, incl. agriculture, old methodology)
+    # Col 11: Real GVA New (full, incl. agriculture, new methodology)
+    # Col 18: Real GDP
+    ws_gva2 = wb["Macro Indicators & GVA (2)"]
+    rows_gva2 = list(ws_gva2.iter_rows(values_only=True))
+    headers_gva2 = list(rows_gva2[0])
+    headers_gva2[0] = "Year"
+    records_gva2 = [r for r in rows_gva2[1:] if r[0] is not None]
+    df_gva2 = pd.DataFrame(records_gva2, columns=headers_gva2)
+    # Rename full GVA columns to distinguish from non-agri
+    df_gva2 = df_gva2.rename(columns={
+        "Real GVA Old": "Real Full GVA Old",
+        "Real GVA New": "Real Full GVA New",
+    })
+
+    # --- Also load Figure 2 for non-agri GVA columns ---
+    ws_f2 = wb["Figure 2"]
+    rows_f2 = list(ws_f2.iter_rows(values_only=True))
+    headers_f2 = list(rows_f2[0])
     headers_f2[0] = "Year"
-    records = [r for r in rows[1:] if r[0] is not None]
-    df2 = pd.DataFrame(records, columns=headers_f2)
-
-    # --- Figure 1: full GVA (incl. agriculture) ---
-    ws1 = wb["Figure 1."]
-    rows1 = list(ws1.iter_rows(values_only=True))
-    headers_f1 = list(rows1[0])
-    headers_f1[0] = "Year"
-    records1 = [r for r in rows1[1:] if r[0] is not None]
-    df1 = pd.DataFrame(records1, columns=headers_f1)
-
-    # Rename Figure 1 GVA columns to avoid clash
-    # Figure 1 col 10 = "Real GVA Old" (full, with agri - but it's the bank credit based on values)
-    # Actually col 10 in Fig1 header is "Real GVA Old", col 11 is "Real GVA New"
-    # But values suggest col 10 is full GVA new methodology. Let me just use Real GDP.
+    records_f2 = [r for r in rows_f2[1:] if r[0] is not None]
+    df_f2 = pd.DataFrame(records_f2, columns=headers_f2)
+    # Keep only the non-agri GVA columns from Figure 2
+    df_nonagri = df_f2[["Year", "Real non agri GVA Old", "Real non agri GVA New"]].copy()
 
     wb.close()
 
-    # Build master DF from Figure 2
-    df = df2.copy()
+    # Merge: use GVA(2) as base, add non-agri columns from Figure 2
+    df = df_gva2.merge(df_nonagri, on="Year", how="left")
     # Deduplicate column names (e.g. two "Real Imports" columns)
     seen = {}
     new_headers = []
@@ -183,8 +189,10 @@ def get_y_values(df, y_mode, gva_series_mode, period_mask_1, period_mask_2):
     if y_mode == "Non-Agri GVA (Paper Default)":
         col_old = "Real non agri GVA Old"
         col_new = "Real non agri GVA New"
-    elif y_mode == "Real GDP (incl. Agriculture)":
-        # Use Real GDP for both — single series, no old/new distinction
+    elif y_mode == "Full GVA (incl. Agriculture)":
+        col_old = "Real Full GVA Old"
+        col_new = "Real Full GVA New"
+    elif y_mode == "Real GDP (all sectors)":
         col_old = "Real GDP"
         col_new = "Real GDP"
     else:
@@ -341,9 +349,10 @@ st.sidebar.title("Dashboard Controls")
 
 st.sidebar.header("GVA Series Selection")
 y_mode = st.sidebar.radio("Dependent variable",
-    ["Non-Agri GVA (Paper Default)", "Real GDP (incl. Agriculture)"],
-    help="Paper excludes agriculture and public admin from GVA. "
-         "'Real GDP' includes all sectors.")
+    ["Non-Agri GVA (Paper Default)", "Full GVA (incl. Agriculture)", "Real GDP (all sectors)"],
+    help="Paper uses GVA excluding agriculture and public admin. "
+         "'Full GVA' includes agriculture. "
+         "'Real GDP' also includes net taxes on products.")
 
 gva_series_mode = st.sidebar.radio("Old vs New methodology",
     ["Paper: Old pre-2012, New post-2012",
@@ -370,7 +379,12 @@ exclude_pandemic = st.sidebar.checkbox("Exclude 2020-21 (pandemic)", value=True)
 
 # Determine y columns based on user selection
 y1_col, y2_col = get_y_values(df_master, y_mode, gva_series_mode, None, None)
-y_label_short = "Real Non-Agri GVA Growth" if "Non-Agri" in y_mode else "Real GDP Growth"
+if "Non-Agri" in y_mode:
+    y_label_short = "Real Non-Agri GVA Growth"
+elif "Full GVA" in y_mode:
+    y_label_short = "Real GVA Growth (all sectors)"
+else:
+    y_label_short = "Real GDP Growth"
 
 # All available indicator columns
 INDICATOR_COLS = {
@@ -389,8 +403,8 @@ INDICATOR_COLS = {
 # ========================
 # MAIN TITLE
 # ========================
-st.title("India's 20 Years of GDP Misestimation")
-st.markdown("**Recreating figures from WP26-3 (Anand, Felman & Subramanian, March 2026) with statistical tests**")
+st.title("India GDP: A Statistical Review")
+st.markdown("**Reproducing and extending the analysis from WP26-3 (Anand, Felman & Subramanian, March 2026) with statistical tests**")
 st.markdown(f"*Current settings*: {y_mode} | {gva_series_mode} | "
             f"Periods: {p1_label} vs {p2_label} | "
             f"{'Excl.' if exclude_pandemic else 'Incl.'} pandemic years")
@@ -759,7 +773,10 @@ with tab8:
         "Non-Agri GVA Old": "Real non agri GVA Old",
         "Non-Agri GVA New": "Real non agri GVA New",
         "Non-Agri GVA (paper blend)": "__BLEND_NONAGRI__",
-        "Real GDP (incl. Agriculture)": "Real GDP",
+        "Full GVA Old (incl. Agri)": "Real Full GVA Old",
+        "Full GVA New (incl. Agri)": "Real Full GVA New",
+        "Full GVA (paper blend)": "__BLEND_FULL__",
+        "Real GDP": "Real GDP",
         "Real Sales": "Real Sales",
     }
     available_x = {
@@ -798,10 +815,13 @@ with tab8:
             x_col = available_x[x_name]
             y_val = available_y[y_choice]
 
-            # Handle blended non-agri GVA
+            # Handle blended GVA options
             if y_val == "__BLEND_NONAGRI__":
                 cy1 = "Real non agri GVA Old"
                 cy2 = "Real non agri GVA New"
+            elif y_val == "__BLEND_FULL__":
+                cy1 = "Real Full GVA Old"
+                cy2 = "Real Full GVA New"
             else:
                 cy1 = y_val
                 cy2 = y_val
