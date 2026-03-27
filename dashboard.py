@@ -118,15 +118,6 @@ def load_gdp_discrepancies():
     return df
 
 
-@st.cache_data
-def load_figure14():
-    wb = openpyxl.load_workbook(DATA_FILE, data_only=True)
-    ws = wb["Figure 14"]
-    rows = list(ws.iter_rows(values_only=True))
-    wb.close()
-    return rows
-
-
 # --- Statistical Functions ---
 def fisher_z_transform(r, n):
     """Compute Fisher's z-transformation with CI and p-value."""
@@ -393,13 +384,11 @@ st.markdown(f"*Current settings*: **{y_mode}** | "
             f"Periods: {p1_label} vs {p2_label} | "
             f"{'Excl.' if exclude_pandemic else 'Incl.'} pandemic years")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Fig 2: GVA vs Indicators",
     "Fig 3: Sales vs Indicators",
     "Fig 4: GVA vs Sales",
     "Fig 10: CPI-WPI Wedge",
-    "Fig 12 & 14: Backcasting",
-    "Fig 16: Growth Rates",
     "Fisher z Summary",
     "Custom Correlations"])
 
@@ -600,107 +589,9 @@ with tab4:
 
 
 # ============================================================
-# TAB 5: Figure 12 & 14 - Backcasting
+# TAB 5: Fisher z Summary
 # ============================================================
 with tab5:
-    st.header("Figure 12 & 14: Impact of Statistical Revisions, 2005-11")
-
-    fig14_rows = load_figure14()
-    if fig14_rows and len(fig14_rows) > 3:
-        years = [int(v) for v in fig14_rows[0][2:] if v is not None]
-        nsc_vals = [float(v) for v in fig14_rows[1][2:] if v is not None]
-        old_vals = [float(v) for v in fig14_rows[2][2:] if v is not None]
-        new_vals = [float(v) for v in fig14_rows[3][2:] if v is not None]
-
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=years, y=nsc_vals, mode="lines+markers",
-            name="NSC Committee revised", line=dict(color="#2ca02c", width=2.5)))
-        fig.add_trace(go.Scatter(x=years, y=old_vals, mode="lines+markers",
-            name="Old series (2004-base)", line=dict(color="#1f77b4", width=2.5)))
-        fig.add_trace(go.Scatter(x=years, y=new_vals, mode="lines+markers",
-            name="New backcast (2011-base)", line=dict(color="#d62728", width=2.5)))
-        fig.update_layout(title="GDP Growth: Three Series (2005-2011)",
-                          xaxis_title="Year", yaxis_title="Growth (%)",
-                          template="plotly_white", height=500)
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Correlation with sales
-        st.subheader("Figure 13: Which Series Tracks Sales Better?")
-        sales_for_period = []
-        for row in load_master_dataframe().itertuples():
-            if 2005 <= row.YearInt <= 2011:
-                v = row._asdict().get("Real Sales")
-                if v is not None and not np.isnan(v):
-                    sales_for_period.append(v)
-
-        n_min = min(len(sales_for_period), len(nsc_vals), len(old_vals), len(new_vals))
-        if n_min >= 4:
-            sa = np.array(sales_for_period[:n_min])
-            s_nsc = compute_correlation_with_stats(sa, np.array(nsc_vals[:n_min]))
-            s_old = compute_correlation_with_stats(sa, np.array(old_vals[:n_min]))
-            s_new = compute_correlation_with_stats(sa, np.array(new_vals[:n_min]))
-
-            c1, c2, c3 = st.columns(3)
-            for c, label, s in [(c1, "NSC Committee", s_nsc),
-                                (c2, "Old Series", s_old),
-                                (c3, "New Backcast", s_new)]:
-                with c:
-                    if s:
-                        sig = significance_label(s["p_value"])
-                        st.metric(label, f"r = {s['r']:.3f} {sig}",
-                                  f"p = {s['p_value']:.4f}, CI [{s['ci_lower_r']:.2f}, {s['ci_upper_r']:.2f}]")
-                    else:
-                        st.metric(label, "N/A")
-
-
-# ============================================================
-# TAB 6: Figure 16 - Growth rates bar chart
-# ============================================================
-with tab6:
-    st.header("Figure 16: Growth Rates of Macro Indicators")
-    st.markdown("Annual average growth rates across three periods (real terms). Pandemic years excluded.")
-
-    df = df_master.copy()
-    df = df[~df["YearInt"].isin([2020, 2021])]
-
-    periods_bar = {
-        "1995-2004": (1995, 2004),
-        "2005-11": (2005, 2011),
-        "2012-24": (2012, 2024),
-    }
-
-    bar_indicators = [
-        ("IIP", "IIP"), ("Credit", "Real Bank Credit"),
-        ("Exports", "Real Exports"), ("Imports", "Real Imports"),
-        ("Direct Tax", "Real Direct Taxes"),
-        ("Electricity", "Electricity Consumption growth"),
-        ("Sales", "Real Sales"), ("GDP", "Real GDP")]
-
-    avgs = {}
-    for pname, (y1, y2) in periods_bar.items():
-        mask = (df["YearInt"] >= y1) & (df["YearInt"] <= y2)
-        sub = df[mask]
-        avgs[pname] = [pd.to_numeric(sub[col], errors="coerce").mean() for _, col in bar_indicators]
-
-    fig = go.Figure()
-    colors_bar = {"1995-2004": "#636EFA", "2005-11": "#00CC96", "2012-24": "#EF553B"}
-    for pname in periods_bar:
-        fig.add_trace(go.Bar(name=pname, x=[n for n, _ in bar_indicators], y=avgs[pname],
-                             marker_color=colors_bar[pname]))
-
-    fig.update_layout(barmode="group",
-                      title="Growth Rates of Macro Indicators (Annual Average, Real %)",
-                      yaxis_title="Percent", template="plotly_white", height=500)
-    st.plotly_chart(fig, use_container_width=True)
-
-    df_table = pd.DataFrame(avgs, index=[n for n, _ in bar_indicators]).round(1)
-    st.dataframe(df_table, use_container_width=True)
-
-
-# ============================================================
-# TAB 7: Fisher z Summary
-# ============================================================
-with tab7:
     st.header("Fisher's z-Transformation: Full Summary & Difference Tests")
     st.markdown(r"""
     For each correlation pair (pre vs post), we test whether the correlation
@@ -746,9 +637,9 @@ with tab7:
 
 
 # ============================================================
-# TAB 8: Custom Correlations
+# TAB 6: Custom Correlations
 # ============================================================
-with tab8:
+with tab6:
     st.header("Custom Correlation Explorer")
     st.markdown("Build your own scatter plots with any pair of variables. "
                 "All Fisher z-tests are computed automatically.")
