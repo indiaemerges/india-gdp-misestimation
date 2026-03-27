@@ -24,8 +24,8 @@ DATA_FILE = os.path.join(BASE, "Data1.xlsx")
 
 @st.cache_data
 def load_master_dataframe():
-    """Load Figure 2 (all indicators + non-agri GVA) as base, then add
-    full GVA (incl. agriculture) from 'Macro Indicators & GVA (2)'."""
+    """Load Figure 2 as base (all indicators + non-agri GVA), then add
+    true full GVA growth rates (incl. agriculture) from 'non agri gov GVA' sheet."""
     wb = openpyxl.load_workbook(DATA_FILE, data_only=True)
 
     # --- Figure 2: all indicators, Real Sales, Direct Taxes, non-agri GVA ---
@@ -36,23 +36,32 @@ def load_master_dataframe():
     records_f2 = [r for r in rows_f2[1:] if r[0] is not None]
     df = pd.DataFrame(records_f2, columns=headers_f2)
 
-    # --- Macro Indicators & GVA (2): full GVA old/new (incl. agriculture) ---
-    ws_gva2 = wb["Macro Indicators & GVA (2)"]
-    rows_gva2 = list(ws_gva2.iter_rows(values_only=True))
-    headers_gva2 = list(rows_gva2[0])
-    headers_gva2[0] = "Year"
-    records_gva2 = [r for r in rows_gva2[1:] if r[0] is not None]
-    df_gva2 = pd.DataFrame(records_gva2, columns=headers_gva2)
-    # Keep only the full GVA columns we need, renamed to avoid clashes
-    df_full_gva = df_gva2[["Year", "Real GVA Old", "Real GVA New"]].copy()
-    df_full_gva = df_full_gva.rename(columns={
-        "Real GVA Old": "Real Full GVA Old",
-        "Real GVA New": "Real Full GVA New",
+    # --- non agri gov GVA: true full GVA growth rates (incl. agriculture) ---
+    # Row 0:  years header
+    # Row 22: Real GVA (New base) growth rates — full coverage 1992-2024
+    # Row 23: Real GVA (Old base) growth rates — coverage up to ~2013-14
+    ws_gva = wb["non agri gov GVA"]
+    rows_gva = list(ws_gva.iter_rows(values_only=True))
+    years_gva  = [str(y).strip() for y in rows_gva[0][1:] if y is not None]
+    gva_new_gr = [rows_gva[22][i+1] for i in range(len(years_gva))]
+    gva_old_gr = [rows_gva[23][i+1] for i in range(len(years_gva))]
+
+    def clean(v):
+        try:
+            f = float(v)
+            return f if np.isfinite(f) else np.nan
+        except (TypeError, ValueError):
+            return np.nan
+
+    df_full_gva = pd.DataFrame({
+        "Year": years_gva,
+        "Real Full GVA Old": [clean(v) for v in gva_old_gr],
+        "Real Full GVA New": [clean(v) for v in gva_new_gr],
     })
 
     wb.close()
 
-    # Merge: Figure 2 as base, add full GVA columns from GVA(2)
+    # Merge: Figure 2 as base, add full GVA columns
     df = df.merge(df_full_gva, on="Year", how="left")
     # Deduplicate column names (e.g. two "Real Imports" columns)
     seen = {}
@@ -182,16 +191,10 @@ def get_y_values(df, y_mode, gva_series_mode, period_mask_1, period_mask_2):
     gva_series_mode: how to pick old vs new series
     """
     # Determine column names based on y_mode
-    if y_mode == "Non-Agri GVA (Paper Default)":
-        col_old = "Real non agri GVA Old"
-        col_new = "Real non agri GVA New"
-    elif y_mode == "Full GVA (incl. Agriculture)":
+    if y_mode == "Full GVA (incl. Agriculture)":
         col_old = "Real Full GVA Old"
         col_new = "Real Full GVA New"
-    elif y_mode == "Real GDP (all sectors)":
-        col_old = "Real GDP"
-        col_new = "Real GDP"
-    else:
+    else:  # Non-Agri GVA (Paper Default)
         col_old = "Real non agri GVA Old"
         col_new = "Real non agri GVA New"
 
@@ -336,10 +339,9 @@ st.sidebar.title("Dashboard Controls")
 
 st.sidebar.header("GVA Series Selection")
 y_mode = st.sidebar.radio("Dependent variable",
-    ["Non-Agri GVA (Paper Default)", "Full GVA (incl. Agriculture)", "Real GDP (all sectors)"],
+    ["Non-Agri GVA (Paper Default)", "Full GVA (incl. Agriculture)"],
     help="Paper uses GVA excluding agriculture and public admin. "
-         "'Full GVA' includes agriculture. "
-         "'Real GDP' also includes net taxes on products.")
+         "'Full GVA' includes agriculture (old base pre-2012, new base post-2012).")
 
 # Always use paper methodology: Old series pre-2012, New series post-2012
 gva_series_mode = "Paper: Old pre-2012, New post-2012"
@@ -362,12 +364,10 @@ exclude_pandemic = st.sidebar.checkbox("Exclude 2020-21 (pandemic)", value=True)
 
 # Determine y columns based on user selection
 y1_col, y2_col = get_y_values(df_master, y_mode, gva_series_mode, None, None)
-if "Non-Agri" in y_mode:
-    y_label_short = "Real Non-Agri GVA Growth"
-elif "Full GVA" in y_mode:
-    y_label_short = "Real GVA Growth (all sectors)"
+if "Full GVA" in y_mode:
+    y_label_short = "Real GVA Growth (incl. Agriculture)"
 else:
-    y_label_short = "Real GDP Growth"
+    y_label_short = "Real Non-Agri GVA Growth"
 
 
 # All available indicator columns
@@ -760,7 +760,6 @@ with tab8:
         "Full GVA Old (incl. Agri)": "Real Full GVA Old",
         "Full GVA New (incl. Agri)": "Real Full GVA New",
         "Full GVA (paper blend)": "__BLEND_FULL__",
-        "Real GDP": "Real GDP",
         "Real Sales": "Real Sales",
     }
     available_x = {
