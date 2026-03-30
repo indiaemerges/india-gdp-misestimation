@@ -349,7 +349,7 @@ period2 = (p2_start, p2_end)
 p1_label = f"{p1_start}-{str(p1_end)[-2:]}"
 p2_label = f"{p2_start}-{str(p2_end)[-2:]}"
 
-exclude_pandemic = st.sidebar.checkbox("Exclude 2020-21 (pandemic)", value=True)
+exclude_pandemic = st.sidebar.checkbox("Exclude 2020-21 & 2021-22 (pandemic years)", value=True)
 
 # Determine y columns based on user selection
 y1_col, y2_col = get_y_values(df_master, y_mode, gva_series_mode, None, None)
