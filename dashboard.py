@@ -236,30 +236,37 @@ def make_correlation_figure(x1, y1, x2, y2, s1, s2, x_label, y_label, title,
         fig.add_trace(go.Scatter(x=xr, y=s2["slope"] * xr + s2["intercept"],
             mode="lines", line=dict(color="#d62728", dash="dash"), showlegend=False))
 
-    # Stat annotations
+    # Stat annotations — stacked at bottom-right, clear of data
     annotations = []
     if s1:
         sig1 = significance_label(s1["p_value"])
-        annotations.append(dict(x=0.02, y=0.98, xref="paper", yref="paper",
+        annotations.append(dict(x=0.99, y=0.34, xref="paper", yref="paper",
             text=f"<b>{p1_label}</b>: r={s1['r']:.2f} {sig1}<br>"
-                 f"  95% CI [{s1['ci_lower_r']:.2f}, {s1['ci_upper_r']:.2f}]<br>"
-                 f"  Fisher z={s1['fisher_z']:.3f}, p={s1['p_value']:.4f}",
-            showarrow=False, font=dict(size=11, color="#1f77b4"),
-            bgcolor="rgba(255,255,255,0.85)", bordercolor="#1f77b4",
-            xanchor="left", yanchor="top"))
+                 f"CI [{s1['ci_lower_r']:.2f}, {s1['ci_upper_r']:.2f}]<br>"
+                 f"Fisher z={s1['fisher_z']:.3f}, p={s1['p_value']:.4f}",
+            showarrow=False, font=dict(size=10, color="#1f77b4"),
+            bgcolor="rgba(255,255,255,0.88)", bordercolor="#1f77b4", borderwidth=1,
+            xanchor="right", yanchor="top"))
     if s2:
         sig2 = significance_label(s2["p_value"])
-        annotations.append(dict(x=0.02, y=0.70, xref="paper", yref="paper",
+        annotations.append(dict(x=0.99, y=0.01, xref="paper", yref="paper",
             text=f"<b>{p2_label}</b>: r={s2['r']:.2f} {sig2}<br>"
-                 f"  95% CI [{s2['ci_lower_r']:.2f}, {s2['ci_upper_r']:.2f}]<br>"
-                 f"  Fisher z={s2['fisher_z']:.3f}, p={s2['p_value']:.4f}",
-            showarrow=False, font=dict(size=11, color="#d62728"),
-            bgcolor="rgba(255,255,255,0.85)", bordercolor="#d62728",
-            xanchor="left", yanchor="top"))
+                 f"CI [{s2['ci_lower_r']:.2f}, {s2['ci_upper_r']:.2f}]<br>"
+                 f"Fisher z={s2['fisher_z']:.3f}, p={s2['p_value']:.4f}",
+            showarrow=False, font=dict(size=10, color="#d62728"),
+            bgcolor="rgba(255,255,255,0.88)", bordercolor="#d62728", borderwidth=1,
+            xanchor="right", yanchor="bottom"))
 
-    fig.update_layout(title=title, xaxis_title=x_label, yaxis_title=y_label,
-                      annotations=annotations, height=480, template="plotly_white",
-                      legend=dict(x=0.82, y=0.98))
+    fig.update_layout(
+        title=title, xaxis_title=x_label, yaxis_title=y_label,
+        annotations=annotations, height=480, template="plotly_white",
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02,
+            xanchor="right", x=1,
+            bgcolor="rgba(255,255,255,0.8)", bordercolor="lightgrey", borderwidth=1
+        ),
+        margin=dict(t=80)   # extra top margin so horizontal legend clears the title
+    )
     return fig
 
 
@@ -572,12 +579,12 @@ with tab4:
             fig.add_trace(go.Scatter(x=xr, y=s["slope"] * xr + s["intercept"],
                 mode="lines", line=dict(color="#2ca02c", dash="dash"), showlegend=False))
             sig = significance_label(s["p_value"])
-            fig.add_annotation(x=0.02, y=0.98, xref="paper", yref="paper",
+            fig.add_annotation(x=0.99, y=0.01, xref="paper", yref="paper",
                 text=f"r = {s['r']:.2f} {sig}<br>"
                      f"95% CI [{s['ci_lower_r']:.2f}, {s['ci_upper_r']:.2f}]<br>"
                      f"Fisher z = {s['fisher_z']:.3f}, p = {s['p_value']:.4f}",
-                showarrow=False, font=dict(size=12), bgcolor="rgba(255,255,255,0.85)",
-                bordercolor="#2ca02c", xanchor="left", yanchor="top")
+                showarrow=False, font=dict(size=11), bgcolor="rgba(255,255,255,0.88)",
+                bordercolor="#2ca02c", borderwidth=1, xanchor="right", yanchor="bottom")
 
         fig.update_layout(
             title="Expenditure-Production GDP Discrepancy vs CPI-WPI Wedge",
