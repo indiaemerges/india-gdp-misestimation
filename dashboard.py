@@ -25,8 +25,15 @@ DATA_FILE = os.path.join(BASE, "Data1.xlsx")
 @st.cache_data
 def load_master_dataframe():
     """Load Figure 2 as base (all indicators + non-agri GVA), then add
-    true full GVA growth rates (incl. agriculture) from 'non agri gov GVA' sheet."""
+    full GVA Old (2004-05 base, GDP at Factor Cost) from 'Macro Indicators & GVA (2)'."""
     wb = openpyxl.load_workbook(DATA_FILE, data_only=True)
+
+    def clean(v):
+        try:
+            f = float(v)
+            return f if np.isfinite(f) else np.nan
+        except (TypeError, ValueError):
+            return np.nan
 
     # --- Figure 2: all indicators, Real Sales, Direct Taxes, non-agri GVA ---
     ws_f2 = wb["Figure 2"]
@@ -36,33 +43,24 @@ def load_master_dataframe():
     records_f2 = [r for r in rows_f2[1:] if r[0] is not None]
     df = pd.DataFrame(records_f2, columns=headers_f2)
 
-    # --- non agri gov GVA: true full GVA growth rates (incl. agriculture) ---
-    # Row 0:  years header
-    # Row 22: Real GVA (New base) growth rates — full coverage 1992-2024
-    # Row 23: Real GVA (Old base) growth rates — coverage up to ~2013-14
-    ws_gva = wb["non agri gov GVA"]
-    rows_gva = list(ws_gva.iter_rows(values_only=True))
-    years_gva  = [str(y).strip() for y in rows_gva[0][1:] if y is not None]
-    gva_new_gr = [rows_gva[22][i+1] for i in range(len(years_gva))]
-    gva_old_gr = [rows_gva[23][i+1] for i in range(len(years_gva))]
-
-    def clean(v):
-        try:
-            f = float(v)
-            return f if np.isfinite(f) else np.nan
-        except (TypeError, ValueError):
-            return np.nan
-
-    df_full_gva = pd.DataFrame({
-        "Year": years_gva,
-        "Real Full GVA Old": [clean(v) for v in gva_old_gr],
-        "Real Full GVA New": [clean(v) for v in gva_new_gr],
-    })
+    # --- Macro Indicators & GVA (2): full GVA Old (2004-05 base) ---
+    # Col 0 = Year, Col 10 = Real GVA Old (GDP at Factor Cost, 2004-05 base)
+    # This is the genuine full-economy GVA including agriculture; distinct from
+    # Real GDP (market prices) by the net-taxes-on-products wedge.
+    # For the new base (2011-12), GVA ≈ GDP so we use Real GDP from Figure 2.
+    ws_gva2 = wb["Macro Indicators & GVA (2)"]
+    rows_gva2 = list(ws_gva2.iter_rows(values_only=True))
+    df_full_gva = pd.DataFrame([
+        {"Year": str(r[0]).strip(), "Real Full GVA Old": clean(r[10])}
+        for r in rows_gva2[1:]
+        if r[0] is not None and isinstance(r[0], str) and "-" in str(r[0])
+    ])
 
     wb.close()
 
-    # Merge: Figure 2 as base, add full GVA columns
+    # Merge: Figure 2 as base, add full GVA Old column
     df = df.merge(df_full_gva, on="Year", how="left")
+
     # Deduplicate column names (e.g. two "Real Imports" columns)
     seen = {}
     new_headers = []
@@ -95,10 +93,6 @@ def load_master_dataframe():
     for col in df.columns:
         if col not in ("Year", "YearInt"):
             df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Also pull full GVA from Figure 1 (Real GDP serves as full-economy measure)
-    # Real GDP is already in col 18 of Figure 2
-    # For full GVA with agriculture, we use Real GDP as the best available proxy
 
     return df
 
@@ -182,16 +176,15 @@ def get_y_values(df, y_mode, gva_series_mode, period_mask_1, period_mask_2):
     gva_series_mode: how to pick old vs new series
     """
     # Determine column names based on y_mode
-    if y_mode == "Real GDP":
-        # Full-economy measure: use Real GDP for both periods
-        y1_col = "Real GDP"
+    if y_mode == "Full GVA (incl. Agriculture)":
+        # Old base (2004-05): genuine full GVA = GDP at Factor Cost, distinct from GDP.
+        # New base (2011-12): GVA ≈ GDP in this dataset, so use Real GDP.
+        y1_col = "Real Full GVA Old"
         y2_col = "Real GDP"
     else:  # Non-Agri GVA (Paper Default)
-        col_old = "Real non agri GVA Old"
-        col_new = "Real non agri GVA New"
         # Paper methodology: Old series for pre-2012, New series for post-2012
-        y1_col = col_old
-        y2_col = col_new
+        y1_col = "Real non agri GVA Old"
+        y2_col = "Real non agri GVA New"
 
     return y1_col, y2_col
 
@@ -330,10 +323,11 @@ st.sidebar.title("Dashboard Controls")
 
 st.sidebar.header("GVA Series Selection")
 y_mode = st.sidebar.radio("Dependent variable",
-    ["Non-Agri GVA (Paper Default)", "Real GDP"],
+    ["Non-Agri GVA (Paper Default)", "Full GVA (incl. Agriculture)"],
     help="Paper uses non-agri GVA (excludes agriculture and public admin). "
-         "'Real GDP' is the full-economy measure from the same dataset. "
-         "Note: a proper full GVA series (incl. agriculture) is not yet available in the replication data.")
+         "'Full GVA' uses the 2004-05 base GDP at Factor Cost for the pre-2012 period "
+         "(genuinely distinct from GDP) and Real GDP for post-2012 "
+         "(where GVA ≈ GDP in the 2011-12 base series).")
 
 # Always use paper methodology: Old series pre-2012, New series post-2012
 gva_series_mode = "Paper: Old pre-2012, New post-2012"
@@ -356,8 +350,8 @@ exclude_pandemic = st.sidebar.checkbox("Exclude 2020-21 (pandemic)", value=True)
 
 # Determine y columns based on user selection
 y1_col, y2_col = get_y_values(df_master, y_mode, gva_series_mode, None, None)
-if y_mode == "Real GDP":
-    y_label_short = "Real GDP Growth"
+if y_mode == "Full GVA (incl. Agriculture)":
+    y_label_short = "Real Full GVA Growth"
 else:
     y_label_short = "Real Non-Agri GVA Growth"
 
@@ -649,6 +643,8 @@ with tab6:
         "Non-Agri GVA Old": "Real non agri GVA Old",
         "Non-Agri GVA New": "Real non agri GVA New",
         "Non-Agri GVA (paper blend)": "__BLEND_NONAGRI__",
+        "Full GVA Old (2004-05 base)": "Real Full GVA Old",
+        "Full GVA (paper blend: Old pre-2012, GDP post-2012)": "__BLEND_FULL__",
         "Real GDP": "Real GDP",
         "Real Sales": "Real Sales",
     }
@@ -692,6 +688,9 @@ with tab6:
             if y_val == "__BLEND_NONAGRI__":
                 cy1 = "Real non agri GVA Old"
                 cy2 = "Real non agri GVA New"
+            elif y_val == "__BLEND_FULL__":
+                cy1 = "Real Full GVA Old"   # 2004-05 base for pre-2012
+                cy2 = "Real GDP"             # new base ≈ GDP for post-2012
             else:
                 cy1 = y_val
                 cy2 = y_val
