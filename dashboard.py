@@ -182,16 +182,16 @@ def get_y_values(df, y_mode, gva_series_mode, period_mask_1, period_mask_2):
     gva_series_mode: how to pick old vs new series
     """
     # Determine column names based on y_mode
-    if y_mode == "Full GVA (incl. Agriculture)":
-        col_old = "Real Full GVA Old"
-        col_new = "Real Full GVA New"
+    if y_mode == "Real GDP":
+        # Full-economy measure: use Real GDP for both periods
+        y1_col = "Real GDP"
+        y2_col = "Real GDP"
     else:  # Non-Agri GVA (Paper Default)
         col_old = "Real non agri GVA Old"
         col_new = "Real non agri GVA New"
-
-    # Paper methodology: Old series for pre-2012, New series for post-2012
-    y1_col = col_old
-    y2_col = col_new
+        # Paper methodology: Old series for pre-2012, New series for post-2012
+        y1_col = col_old
+        y2_col = col_new
 
     return y1_col, y2_col
 
@@ -330,9 +330,10 @@ st.sidebar.title("Dashboard Controls")
 
 st.sidebar.header("GVA Series Selection")
 y_mode = st.sidebar.radio("Dependent variable",
-    ["Non-Agri GVA (Paper Default)", "Full GVA (incl. Agriculture)"],
-    help="Paper uses GVA excluding agriculture and public admin. "
-         "'Full GVA' includes agriculture (old base pre-2012, new base post-2012).")
+    ["Non-Agri GVA (Paper Default)", "Real GDP"],
+    help="Paper uses non-agri GVA (excludes agriculture and public admin). "
+         "'Real GDP' is the full-economy measure from the same dataset. "
+         "Note: a proper full GVA series (incl. agriculture) is not yet available in the replication data.")
 
 # Always use paper methodology: Old series pre-2012, New series post-2012
 gva_series_mode = "Paper: Old pre-2012, New post-2012"
@@ -355,8 +356,8 @@ exclude_pandemic = st.sidebar.checkbox("Exclude 2020-21 (pandemic)", value=True)
 
 # Determine y columns based on user selection
 y1_col, y2_col = get_y_values(df_master, y_mode, gva_series_mode, None, None)
-if "Full GVA" in y_mode:
-    y_label_short = "Real GVA Growth (incl. Agriculture)"
+if y_mode == "Real GDP":
+    y_label_short = "Real GDP Growth"
 else:
     y_label_short = "Real Non-Agri GVA Growth"
 
@@ -648,9 +649,7 @@ with tab6:
         "Non-Agri GVA Old": "Real non agri GVA Old",
         "Non-Agri GVA New": "Real non agri GVA New",
         "Non-Agri GVA (paper blend)": "__BLEND_NONAGRI__",
-        "Full GVA Old (incl. Agri)": "Real Full GVA Old",
-        "Full GVA New (incl. Agri)": "Real Full GVA New",
-        "Full GVA (paper blend)": "__BLEND_FULL__",
+        "Real GDP": "Real GDP",
         "Real Sales": "Real Sales",
     }
     available_x = {
@@ -693,9 +692,6 @@ with tab6:
             if y_val == "__BLEND_NONAGRI__":
                 cy1 = "Real non agri GVA Old"
                 cy2 = "Real non agri GVA New"
-            elif y_val == "__BLEND_FULL__":
-                cy1 = "Real Full GVA Old"
-                cy2 = "Real Full GVA New"
             else:
                 cy1 = y_val
                 cy2 = y_val
