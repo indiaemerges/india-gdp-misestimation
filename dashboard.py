@@ -181,6 +181,9 @@ def get_y_values(df, y_mode, gva_series_mode, period_mask_1, period_mask_2):
         # New base (2011-12): GVA ≈ GDP in this dataset, so use Real GDP.
         y1_col = "Real Full GVA Old"
         y2_col = "Real GDP"
+    elif y_mode == "Real GDP":
+        y1_col = "Real GDP"
+        y2_col = "Real GDP"
     else:  # Non-Agri GVA (Paper Default)
         # Paper methodology: Old series for pre-2012, New series for post-2012
         y1_col = "Real non agri GVA Old"
@@ -323,11 +326,11 @@ st.sidebar.title("Dashboard Controls")
 
 st.sidebar.header("GVA Series Selection")
 y_mode = st.sidebar.radio("Dependent variable",
-    ["Non-Agri GVA (Paper Default)", "Full GVA (incl. Agriculture)"],
+    ["Non-Agri GVA (Paper Default)", "Full GVA (incl. Agriculture)", "Real GDP"],
     help="Paper uses non-agri GVA (excludes agriculture and public admin). "
-         "'Full GVA' uses the 2004-05 base GDP at Factor Cost for the pre-2012 period "
-         "(genuinely distinct from GDP) and Real GDP for post-2012 "
-         "(where GVA ≈ GDP in the 2011-12 base series).")
+         "'Full GVA' uses 2004-05 base GDP at Factor Cost pre-2012 (genuinely distinct from GDP) "
+         "and Real GDP post-2012 (where GVA ≈ GDP in the 2011-12 base series). "
+         "'Real GDP' uses Real GDP at market prices for both periods.")
 
 # Always use paper methodology: Old series pre-2012, New series post-2012
 gva_series_mode = "Paper: Old pre-2012, New post-2012"
@@ -352,6 +355,8 @@ exclude_pandemic = st.sidebar.checkbox("Exclude 2020-21 (pandemic)", value=True)
 y1_col, y2_col = get_y_values(df_master, y_mode, gva_series_mode, None, None)
 if y_mode == "Full GVA (incl. Agriculture)":
     y_label_short = "Real Full GVA Growth"
+elif y_mode == "Real GDP":
+    y_label_short = "Real GDP Growth"
 else:
     y_label_short = "Real Non-Agri GVA Growth"
 
