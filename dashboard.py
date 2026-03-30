@@ -652,11 +652,11 @@ with tab6:
                 "All Fisher z-tests are computed automatically.")
 
     available_y = {
-        "Non-Agri GVA Old": "Real non agri GVA Old",
-        "Non-Agri GVA New": "Real non agri GVA New",
-        "Non-Agri GVA (paper blend)": "__BLEND_NONAGRI__",
-        "Full GVA Old (2004-05 base)": "Real Full GVA Old",
-        "Full GVA (paper blend: Old pre-2012, GDP post-2012)": "__BLEND_FULL__",
+        "Non-Agri GVA Old (2004-05 base)": "Real non agri GVA Old",
+        "Non-Agri GVA New (2011-12 base)": "Real non agri GVA New",
+        "Non-Agri GVA (paper blend: Old pre-2012, New post-2012)": "__BLEND_NONAGRI__",
+        "Full GVA incl. Agri — Old (2004-05 base)": "Real Full GVA Old",
+        "Full GVA incl. Agri (paper blend: Old pre-2012, GDP post-2012)": "__BLEND_FULL__",
         "Real GDP": "Real GDP",
         "Real Sales": "Real Sales",
     }
