@@ -386,7 +386,7 @@ INDICATOR_COLS = {
 # MAIN TITLE
 # ========================
 st.title("India GDP: A Statistical Review")
-st.markdown("**Reproducing and extending the analysis from WP26-3 (Anand, Felman & Subramanian, March 2026) with statistical tests**")
+st.markdown("**Reproducing and extending the analysis from [WP26-3 (Anand, Felman & Subramanian, March 2026)](https://www.piie.com/publications/working-papers/2026/indias-20-years-gdp-misestimation-new-evidence) with statistical tests**")
 st.markdown(f"*Current settings*: **{y_mode}** | "
             f"Periods: {p1_label} vs {p2_label} | "
             f"{'Excl.' if exclude_pandemic else 'Incl.'} pandemic years")
